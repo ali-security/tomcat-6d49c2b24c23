@@ -47,7 +47,27 @@ public abstract class Authenticator {
      *
      * @throws AuthenticationException When an error occurs
      */
-    public abstract String getAuthorization(String requestUri, String authenticateHeader, String userName,
+    public String getAuthorization(String requestUri, String authenticateHeader, String userName,
+            String userPassword, String userRealm) throws AuthenticationException {
+        return getAuthorization("GET", requestUri, authenticateHeader, userName, userPassword, userRealm);
+    }
+
+    /**
+     * Generate the authorization header value that will be sent to the server.
+     *
+     * @param method             The request method
+     * @param requestUri         The request URI
+     * @param authenticateHeader The server authentication header received
+     * @param userName           The user name
+     * @param userPassword       The user password
+     * @param userRealm          The realm for which the provided user name and password are valid. {@code null} to
+     *                               indicate all realms.
+     *
+     * @return The generated authorization header value
+     *
+     * @throws AuthenticationException When an error occurs
+     */
+    public abstract String getAuthorization(String method, String requestUri, String authenticateHeader, String userName,
             String userPassword, String userRealm) throws AuthenticationException;
 
 
