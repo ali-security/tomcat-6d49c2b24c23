@@ -1222,6 +1222,91 @@ public class TestWebdavServlet extends TomcatBaseTest {
 
     }
 
+
+    /*
+     * Only tests LOCK bodies exceeding limit. Other tests cover valid LOCK bodies.
+     */
+    @Test
+    public void testLockBodyLimit() throws Exception {
+        doTestLimit("LOCK", LOCK_BODY, true);
+    }
+
+
+    /*
+     * As above but using chunked encoding so no content length is available and the limit has to be enforced while the
+     * request body is being read.
+     */
+    @Test
+    public void testLockBodyLimitChunked() throws Exception {
+        doTestLimit("LOCK", LOCK_BODY, false);
+    }
+
+
+    /*
+     * Only tests PROPFIND bodies exceeding limit. Other tests cover valid PROPFIND bodies.
+     */
+    @Test
+    public void testPropFindBodyLimit() throws Exception {
+        doTestLimit("PROPFIND", PROPFIND_PROP, true);
+    }
+
+
+    /*
+     * As above but using chunked encoding so no content length is available and the limit has to be enforced while the
+     * request body is being read.
+     */
+    @Test
+    public void testPropFindBodyLimitChunked() throws Exception {
+        doTestLimit("PROPFIND", PROPFIND_PROP, false);
+    }
+
+
+    private void doTestLimit(String method, String requestBody, boolean useContentLength) throws Exception {
+
+        Tomcat tomcat = getTomcatInstance();
+
+        File appDir = new File("test/webapp");
+        Context ctxt = tomcat.addContext("", appDir.getAbsolutePath());
+
+        Wrapper webdavServlet = Tomcat.addServlet(ctxt, "webdav", new WebdavServlet());
+        webdavServlet.addInitParameter("listings", "true");
+        webdavServlet.addInitParameter("secret", "foo");
+        webdavServlet.addInitParameter("readonly", "false");
+        webdavServlet.addInitParameter("useStrongETags", "true");
+        webdavServlet.addInitParameter("maxRequestBodySize", "10");
+
+        ctxt.addServletMappingDecoded("/*", "webdav");
+        tomcat.start();
+
+        Client client = new Client();
+        client.setPort(getPort());
+
+        if (useContentLength) {
+            // With content length
+            client.setRequest(new String[] { method + " / HTTP/1.1" + SimpleHttpClient.CRLF +
+                    "Host: localhost:" + getPort() + SimpleHttpClient.CRLF +
+                    "Content-Length: " + requestBody.length() + SimpleHttpClient.CRLF +
+                    "Connection: Close" + SimpleHttpClient.CRLF +
+                    SimpleHttpClient.CRLF + requestBody });
+        } else {
+            // Without content length
+            client.setRequest(new String[] { method + " / HTTP/1.1" + SimpleHttpClient.CRLF +
+                    "Host: localhost:" + getPort() + SimpleHttpClient.CRLF +
+                    "Transfer-Encoding: chunked" + SimpleHttpClient.CRLF +
+                    "Connection: Close" + SimpleHttpClient.CRLF +
+                    SimpleHttpClient.CRLF +
+                    Integer.toHexString(requestBody.length()) + SimpleHttpClient.CRLF +
+                    requestBody + SimpleHttpClient.CRLF +
+                    "0" + SimpleHttpClient.CRLF +
+                    SimpleHttpClient.CRLF });
+        }
+        client.connect();
+        client.processRequest(true);
+        Assert.assertEquals(client.getResponseLine(), WebdavStatus.SC_REQUEST_TOO_LONG, client.getStatusCode());
+        client.disconnect();
+    }
+
+
     public static class CustomPropertyStore implements PropertyStore {
 
         private String propertyName = null;
